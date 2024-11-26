@@ -72,6 +72,11 @@ class SegOnlyTransform(BasicTransform):
             data_dict['segmentation'] = self._apply_to_segmentation(data_dict['segmentation'], **params)
         return data_dict
 
+class Channel1ThatisSegOnlyTransform(BasicTransform):
+    def apply(self, data_dict: dict, **params) -> dict:
+        if data_dict.get('channel1') is not None:
+            data_dict['channel1'] = self._apply_to_segmentation(data_dict['channel1'], **params)
+        return data_dict
 
 if __name__ == '__main__':
     pass
