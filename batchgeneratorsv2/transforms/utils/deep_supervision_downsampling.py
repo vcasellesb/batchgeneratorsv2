@@ -32,21 +32,21 @@ class DownsampleChannel1SegForDSTransform(Channel1ThatisSegOnlyTransform):
         super().__init__()
         self.ds_scales = ds_scales
     
-    def _apply_to_segmentation(self, segmentation: torch.Tensor, **params) -> List[torch.Tensor]:
+    def _apply_to_baseline_mask(self, baseline_mask: torch.Tensor, **params) -> List[torch.Tensor]:
         results = []
         for s in self.ds_scales:
             if not isinstance(s, (tuple, list)):
-                s = [s] * (segmentation.ndim - 1)
+                s = [s] * (baseline_mask.ndim - 1)
             else:
-                assert len(s) == segmentation.ndim - 1
+                assert len(s) == baseline_mask.ndim - 1
 
             if all([i == 1 for i in s]):
-                results.append(segmentation)
+                results.append(baseline_mask)
             else:
-                new_shape = [round(i * j) for i, j in zip(segmentation.shape[1:], s)]
-                dtype = segmentation.dtype
+                new_shape = [round(i * j) for i, j in zip(baseline_mask.shape[1:], s)]
+                dtype = baseline_mask.dtype
                 # interpolate is not defined for short etc
-                results.append(interpolate(segmentation[None].float(), new_shape, mode='nearest-exact')[0].to(dtype))
+                results.append(interpolate(baseline_mask[None].float(), new_shape, mode='nearest-exact')[0].to(dtype))
         return results
 
 if __name__ == '__main__':
@@ -60,11 +60,14 @@ if __name__ == '__main__':
     mbt = DownsampleChannel1SegForDSTransform((1, 0.5, 0.25))
     times_torch = []
     for _ in range(1):
-        data_dict = {'channel1': torch.round(5 * torch.rand((2, 128, 192, 64)), decimals=0).to(torch.uint8)}
+        data_dict = {'baseline': torch.round(5 * torch.rand((2, 128, 192, 64)), decimals=0).to(torch.uint8)}
         st = time.time()
         out = mbt(**data_dict)
         times_torch.append(time.time() - st)
     print('torch', np.mean(times_torch))
+
+    print('Output shapes:')
+    print([i.shape for i in out['baseline']])
 
     mbt = DownsampleSegForDSTransform((1, 0.5, 0.25))
 
@@ -75,6 +78,8 @@ if __name__ == '__main__':
         out = mbt(**data_dict)
         times_torch.append(time.time() - st)
     print('torch', np.mean(times_torch))
+    print('Output shapes:')
+    print([i.shape for i in out['segmentation']])
 
     exit()
 

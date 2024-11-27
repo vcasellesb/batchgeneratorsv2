@@ -74,8 +74,8 @@ class SegOnlyTransform(BasicTransform):
 
 class Channel1ThatisSegOnlyTransform(BasicTransform):
     def apply(self, data_dict: dict, **params) -> dict:
-        if data_dict.get('channel1') is not None:
-            data_dict['channel1'] = self._apply_to_segmentation(data_dict['channel1'], **params)
+        if data_dict.get('baseline') is not None:
+            data_dict['baseline'] = self._apply_to_baseline_mask(data_dict['baseline'], **params)
         return data_dict
 
 if __name__ == '__main__':
