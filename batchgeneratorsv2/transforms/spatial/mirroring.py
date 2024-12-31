@@ -27,6 +27,12 @@ class MirrorTransform(BasicTransform):
             return segmentation
         axes = [i + 1 for i in params['axes']]
         return torch.flip(segmentation, axes)
+    
+    def _apply_to_baseline_mask(self, baseline_mask: torch.Tensor, **params) -> torch.Tensor:
+        if len(params['axes']) == 0:
+            return baseline_mask
+        axes = [i + 1 for i in params['axes']]
+        return torch.flip(baseline_mask, axes)
 
     def _apply_to_regr_target(self, regression_target, **params) -> torch.Tensor:
         if len(params['axes']) == 0:

@@ -265,6 +265,91 @@ class SpatialTransform(BasicTransform):
                         del tmp
             del grid
             return result_seg.contiguous()
+        
+    def _apply_to_baseline_mask(self, baseline_mask: torch.Tensor, **params) -> torch.Tensor:
+        baseline_mask = baseline_mask.contiguous()
+        if params['affine'] is None and params['elastic_offsets'] is None:
+            # No spatial transformation is being done. Round grid_center and crop without having to interpolate.
+            # This saves compute.
+            # cropping requires the center to be given as integer coordinates
+            baseline_mask = crop_tensor(baseline_mask,
+                                       [math.floor(i) for i in params['center_location_in_pixels']],
+                                       self.patch_size,
+                                       pad_mode='constant',
+                                       pad_kwargs={'value': 0})
+            return baseline_mask
+        else:
+            grid = _create_centered_identity_grid2(self.patch_size)
+
+            # we deform first, then rotate
+            if params['elastic_offsets'] is not None:
+                grid += params['elastic_offsets']
+            if params['affine'] is not None:
+                grid = torch.matmul(grid, torch.from_numpy(params['affine']).float())
+
+            # we center the grid around the center_location_in_pixels. We should center the mean of the grid, not the center coordinate
+            if self.center_deformation and params['elastic_offsets'] is not None:
+                mn = grid.mean(dim=list(range(baseline_mask.ndim - 1)))
+            else:
+                mn = 0
+
+            new_center = torch.Tensor([c - s / 2 for c, s in zip(params['center_location_in_pixels'], baseline_mask.shape[1:])])
+
+            grid += (new_center - mn)
+            grid = _convert_my_grid_to_grid_sample_grid(grid, baseline_mask.shape[1:])
+
+            if self.mode_seg == 'nearest':
+                result_seg = grid_sample(
+                                baseline_mask[None].float(),
+                                grid[None],
+                                mode=self.mode_seg,
+                                padding_mode=self.border_mode_seg,
+                                align_corners=False
+                            )[0].to(baseline_mask.dtype)
+            else:
+                result_seg = torch.zeros((baseline_mask.shape[0], *self.patch_size), dtype=baseline_mask.dtype)
+                if self.bg_style_seg_sampling:
+                    for c in range(baseline_mask.shape[0]):
+                        labels = torch.from_numpy(np.sort(pd.unique(baseline_mask[c].numpy().ravel())))
+                        # if we only have 2 labels then we can save compute time
+                        if len(labels) == 2:
+                            out = grid_sample(
+                                    ((baseline_mask[c] == labels[1]).float())[None, None],
+                                    grid[None],
+                                    mode=self.mode_seg,
+                                    padding_mode=self.border_mode_seg,
+                                    align_corners=False
+                                )[0][0] >= 0.5
+                            result_seg[c][out] = labels[1]
+                            result_seg[c][~out] = labels[0]
+                        else:
+                            for i, u in enumerate(labels):
+                                result_seg[c][
+                                    grid_sample(
+                                        ((baseline_mask[c] == u).float())[None, None],
+                                        grid[None],
+                                        mode=self.mode_seg,
+                                        padding_mode=self.border_mode_seg,
+                                        align_corners=False
+                                    )[0][0] >= 0.5] = u
+                else:
+                    for c in range(baseline_mask.shape[0]):
+                        labels = torch.from_numpy(np.sort(pd.unique(baseline_mask[c].numpy().ravel())))
+                        #torch.where(torch.bincount(segmentation.ravel()) > 0)[0].to(segmentation.dtype)
+                        tmp = torch.zeros((len(labels), *self.patch_size), dtype=torch.float16)
+                        scale_factor = 1000
+                        done_mask = torch.zeros(*self.patch_size, dtype=torch.bool)
+                        for i, u in enumerate(labels):
+                            tmp[i] = grid_sample(((baseline_mask[c] == u).float() * scale_factor)[None, None], grid[None],
+                                                 mode=self.mode_seg, padding_mode=self.border_mode_seg, align_corners=False)[0][0]
+                            mask = tmp[i] > (0.7 * scale_factor)
+                            result_seg[c][mask] = u
+                            done_mask = done_mask | mask
+                        if not torch.all(done_mask):
+                            result_seg[c][~done_mask] = labels[tmp[:, ~done_mask].argmax(0)]
+                        del tmp
+            del grid
+            return result_seg.contiguous()
 
     def _apply_to_regr_target(self, regression_target, **params) -> torch.Tensor:
         return self._apply_to_image(regression_target, **params)
