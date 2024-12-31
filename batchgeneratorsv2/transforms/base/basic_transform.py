@@ -17,7 +17,7 @@ class BasicTransform(abc.ABC):
         params = self.get_parameters(**data_dict)
         return self.apply(data_dict, **params)
 
-    def apply(self, data_dict, **params):
+    def apply(self, data_dict: dict, **params):
         if data_dict.get('image') is not None:
             data_dict['image'] = self._apply_to_image(data_dict['image'], **params)
 
@@ -32,7 +32,10 @@ class BasicTransform(abc.ABC):
 
         if data_dict.get('bbox') is not None:
             data_dict['bbox'] = self._apply_to_bbox(data_dict['bbox'], **params)
-
+        
+        if data_dict.get('baseline') is not None:
+            data_dict['baseline'] = self._apply_to_baseline_mask(data_dict['baseline'], **params)
+            
         return data_dict
 
     def _apply_to_image(self, img: torch.Tensor, **params) -> torch.Tensor:
@@ -42,6 +45,9 @@ class BasicTransform(abc.ABC):
         pass
 
     def _apply_to_segmentation(self, segmentation: torch.Tensor, **params) -> torch.Tensor:
+        pass
+
+    def _apply_to_baseline_mask(self, baseline_mask: torch.Tensor, **params) -> torch.Tensor:
         pass
 
     def _apply_to_keypoints(self, keypoints, **params):
