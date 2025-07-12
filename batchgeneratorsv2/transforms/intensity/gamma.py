@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, Iterable
+
 import torch
 
 from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
@@ -10,14 +11,18 @@ class GammaTransform(ImageOnlyTransform):
                  gamma: RandomScalar,
                  p_invert_image: float,
                  synchronize_channels: bool,
-                 p_per_channel: float,
-                 p_retain_stats: float):
+                 p_per_channel: float | Iterable[float],
+                 p_retain_stats: float
+                ):
+
         super().__init__()
         self.gamma = gamma
         self.p_invert_image = float(p_invert_image)
         self.synchronize_channels = synchronize_channels
-        self.p_per_channel = float(p_per_channel)
-        self.p_retain_stats = float(p_retain_stats)
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
+        self.p_per_channel = p_per_channel
+        self.p_retain_stats = p_retain_stats
 
     def get_parameters(self, **data_dict) -> dict:
         img: torch.Tensor = data_dict["image"]

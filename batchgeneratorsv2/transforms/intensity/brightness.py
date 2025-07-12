@@ -1,3 +1,4 @@
+from typing import Iterable
 import numpy as np
 import torch
 
@@ -6,10 +7,12 @@ from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
 
 
 class MultiplicativeBrightnessTransform(ImageOnlyTransform):
-    def __init__(self, multiplier_range: RandomScalar, synchronize_channels: bool, p_per_channel: float = 1):
+    def __init__(self, multiplier_range: RandomScalar, synchronize_channels: bool, p_per_channel: float | Iterable[float] = 1):
         super().__init__()
         self.multiplier_range = multiplier_range
         self.synchronize_channels = synchronize_channels
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
         self.p_per_channel = p_per_channel
 
     def get_parameters(self, **data_dict) -> dict:

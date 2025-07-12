@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import Iterable
 
 import numpy as np
 from time import time
@@ -73,7 +74,7 @@ class GaussianBlurTransform(ImageOnlyTransform):
                  blur_sigma: RandomScalar = (1, 5),
                  synchronize_channels: bool = False,  # todo make this p_synchronize_channels
                  synchronize_axes: bool = False,  # todo make this p_synchronize_axes
-                 p_per_channel: float = 1,
+                 p_per_channel: float | Iterable[float] = 1,
                  benchmark: bool = False
                  ):
         """
@@ -91,6 +92,8 @@ class GaussianBlurTransform(ImageOnlyTransform):
         self.benchmark = benchmark
         self.synchronize_channels = synchronize_channels
         self.synchronize_axes = synchronize_axes
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
         self.p_per_channel = p_per_channel
         self.benchmark_use_fft = {}  # shape -> kernel size -> use fft yes or no
         self.benchmark_num_runs = 9
