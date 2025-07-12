@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Iterable
 
 import torch
 
@@ -14,13 +14,15 @@ class SimulateLowResolutionTransform(ImageOnlyTransform):
                  synchronize_axes: bool,
                  ignore_axes: Tuple[int, ...],
                  allowed_channels: Tuple[int, ...] = None,
-                 p_per_channel: float = 1):
+                 p_per_channel: float = 1 | Iterable[float]):
         super().__init__()
         self.scale = scale
         self.synchronize_channels = synchronize_channels
         self.synchronize_axes = synchronize_axes
         self.ignore_axes = ignore_axes
         self.allowed_channels = allowed_channels
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
         self.p_per_channel = p_per_channel
 
         self.upmodes = {

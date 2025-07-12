@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Tuple, Iterable
 
 from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
 from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
@@ -9,8 +9,12 @@ import torch
 class GaussianNoiseTransform(ImageOnlyTransform):
     def __init__(self,
                  noise_variance: RandomScalar = (0, 0.1),
-                 p_per_channel: float = 1.,
+                 p_per_channel: float | Iterable[float] = 1.,
                  synchronize_channels: bool = False):
+        # here I do it differently. I set p_per_channel to reflect handle each channel differently
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
+
         self.noise_variance = noise_variance
         self.p_per_channel = p_per_channel
         self.synchronize_channels = synchronize_channels
@@ -55,7 +59,8 @@ if __name__ == "__main__":
     os.environ['OMP_NUM_THREADS'] = '1'
     torch.set_num_threads(1)
 
-    gnt = GaussianNoiseTransform((0, 0.1), 1, False)
+    gnt = GaussianNoiseTransform((0, 0.1), [1, 0], False)
+    assert (gnt.p_per_channel == torch.tensor([1., 0])).all(), gnt.p_per_channel
 
     times = []
     for _ in range(1000):

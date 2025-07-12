@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Iterable
 
 import torch
 
@@ -7,12 +7,14 @@ from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
 
 
 class GammaTransform(ImageOnlyTransform):
-    def __init__(self, gamma: RandomScalar, p_invert_image: float, synchronize_channels: bool, p_per_channel: float,
+    def __init__(self, gamma: RandomScalar, p_invert_image: float, synchronize_channels: bool, p_per_channel: float | Iterable[float],
                  p_retain_stats: float):
         super().__init__()
         self.gamma = gamma
         self.p_invert_image = p_invert_image
         self.synchronize_channels = synchronize_channels
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
         self.p_per_channel = p_per_channel
         self.p_retain_stats = p_retain_stats
 

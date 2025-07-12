@@ -1,3 +1,4 @@
+from typing import Iterable
 import torch
 
 from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
@@ -27,11 +28,13 @@ class BGContrast():
 
 
 class ContrastTransform(ImageOnlyTransform):
-    def __init__(self, contrast_range: RandomScalar, preserve_range: bool, synchronize_channels: bool, p_per_channel: float = 1):
+    def __init__(self, contrast_range: RandomScalar, preserve_range: bool, synchronize_channels: bool, p_per_channel: float | Iterable[float] = 1):
         super().__init__()
         self.contrast_range = contrast_range
         self.preserve_range = preserve_range
         self.synchronize_channels = synchronize_channels
+        if isinstance(p_per_channel, Iterable):
+            p_per_channel = torch.tensor(list(p_per_channel), dtype=float)
         self.p_per_channel = p_per_channel
 
     def get_parameters(self, **data_dict) -> dict:

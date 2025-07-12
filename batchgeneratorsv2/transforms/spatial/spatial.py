@@ -10,6 +10,7 @@ import torch
 from scipy.ndimage import fourier_gaussian, gaussian_filter
 from torch import Tensor
 from torch.nn.functional import grid_sample
+from functools import partial
 
 from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
 from batchgeneratorsv2.transforms.base.basic_transform import BasicTransform
@@ -34,7 +35,8 @@ class SpatialTransform(BasicTransform):
                  mode_seg: str = 'bilinear',
                  border_mode_seg: str = "zeros",
                  center_deformation: bool = True,
-                 padding_mode_image: str = "zeros"
+                 padding_mode_image: str = "zeros",
+                 is_seg_per_channel: list[bool] | None = None
                  ):
         """
         magnitude must be given in pixels!
@@ -44,6 +46,9 @@ class SpatialTransform(BasicTransform):
         because both call self._apply_to_image. Can be "zeros", "reflection", "border"
         """
         super().__init__()
+        if is_seg_per_channel is not None:
+            self._apply_to_image_internal = self._apply_to_image
+            self._apply_to_image = partial(self._apply_to_image_wrapper, is_seg_per_channel=is_seg_per_channel)
         self.patch_size = patch_size
         if not isinstance(patch_center_dist_from_border, (tuple, list)):
             patch_center_dist_from_border = [patch_center_dist_from_border] * len(patch_size)
@@ -286,6 +291,16 @@ class SpatialTransform(BasicTransform):
                         del tmp
             del grid
             return result_seg.contiguous()
+        
+    def _apply_to_image_wrapper(self, image: torch.Tensor, is_seg_per_channel: list[bool], **params) -> torch.Tensor:
+        out = []
+        for c in range(image.shape[0]):
+            if is_seg_per_channel[c]:
+                out.append(self._apply_to_segmentation(image[[c]], **params))
+            else:
+                out.append(self._apply_to_image_internal(image[[c]], **params))
+        out = torch.vstack(out)
+        return out
 
     def _apply_to_regr_target(self, regression_target, **params) -> torch.Tensor:
         return self._apply_to_image(regression_target, **params)
@@ -495,6 +510,79 @@ if __name__ == '__main__':
     transformed = sp._apply_to_image(use, **params)
 
     SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[0].numpy()), 'transformed.nii.gz')
+
+    # test _apply_to_image_wrapper
+    target = torch.from_numpy(np.load('/Users/vicentcaselles/work/research/timelessegv2/test-out_pp/case_0005.npz')['data'])
+    assert target[1].max() == 1.
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[0].numpy()), 'orig_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[1].numpy()), 'orig_baseline.nii.gz')
+    sp = SpatialTransform(
+        patch_size=(192, 128, 224),
+        patch_center_dist_from_border=0,
+        random_crop=False,
+        p_elastic_deform=0,
+        p_rotation=0.2,
+        p_scaling=0.2,
+        p_synchronize_def_scale_across_axes=0,
+        rotation=rot,
+        scaling=(0.7, 1.4),
+        p_synchronize_scaling_across_axes=1,
+        bg_style_seg_sampling=False,
+        mode_seg='bilinear',
+        is_seg_per_channel=[False, True]
+    )
+    transformed = sp._apply_to_image(target, **params)
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[0].numpy()), 'transformed_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[1].numpy()), 'transformed_baseline.nii.gz')
+
+    # test _apply_to_image_wrapper (now when you don't pass handle_each_image_channel_separately)
+    target = torch.from_numpy(np.load('/Users/vicentcaselles/work/research/timelessegv2/test-out_pp/case_0005.npz')['data'])
+    assert target[1].max() == 1.
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[0].numpy()), 'orig_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[1].numpy()), 'orig_baseline.nii.gz')
+    sp = SpatialTransform(
+        patch_size=(192, 128, 224),
+        patch_center_dist_from_border=0,
+        random_crop=False,
+        p_elastic_deform=0,
+        p_rotation=0.2,
+        p_scaling=0.2,
+        p_synchronize_def_scale_across_axes=0,
+        rotation=rot,
+        scaling=(0.7, 1.4),
+        p_synchronize_scaling_across_axes=1,
+        bg_style_seg_sampling=False,
+        mode_seg='bilinear'
+    )
+
+    transformed = sp._apply_to_image(target, **params)
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[0].numpy()), 'transformed_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[1].numpy()), 'transformed_baseline.nii.gz')
+    
+    # test _apply_to_image_wrapper (now when you don't pass handle_each_image_channel_separately)
+    target = torch.from_numpy(np.load('/Users/vicentcaselles/work/research/timelessegv2/test-out_pp/case_0005.npz')['data'])
+    assert target[1].max() == 1.
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[0].numpy()), 'orig_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(target[1].numpy()), 'orig_baseline.nii.gz')
+    sp = SpatialTransform(
+        patch_size=(192, 128, 224),
+        patch_center_dist_from_border=0,
+        random_crop=False,
+        p_elastic_deform=0,
+        p_rotation=0.2,
+        p_scaling=0.2,
+        p_synchronize_def_scale_across_axes=0,
+        rotation=rot,
+        scaling=(0.7, 1.4),
+        p_synchronize_scaling_across_axes=1,
+        bg_style_seg_sampling=False,
+        mode_seg='bilinear',
+        is_seg_per_channel=[False, True]
+    )
+    
+    transformed = sp._apply_to_image(target, **params)
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[0].numpy()), 'transformed_image.nii.gz')
+    SimpleITK.WriteImage(SimpleITK.GetImageFromArray(transformed[1].numpy()), 'transformed_baseline.nii.gz')
 
     # p = torch.zeros((1, 1, 8, 16, 32))
     # p[:, :, 2:6, 10:16, 10:24] = 1
