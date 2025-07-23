@@ -25,10 +25,6 @@ class CiaoBaseline(ImageOnlyTransform):
 
 
     def _apply_to_image(self, img: torch.Tensor, **params):
-        if sum(params.get('apply_per_channel')) > 0:
-            assert sum(params.get('apply_per_channel')) == 1
-            this_channel = list(params.get('apply_per_channel')).index(True)
-            print('heyyyyy setting baseline to channel %i' % this_channel)
         img[params.get('apply_per_channel')] *= 0
         return img
     
