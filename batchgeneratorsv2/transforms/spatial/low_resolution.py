@@ -14,7 +14,7 @@ class SimulateLowResolutionTransform(ImageOnlyTransform):
                  synchronize_axes: bool,
                  ignore_axes: Tuple[int, ...],
                  allowed_channels: Tuple[int, ...] = None,
-                 p_per_channel: float = 1 | Iterable[float]):
+                 p_per_channel: float | Iterable[float] = 1):
         super().__init__()
         self.scale = scale
         self.synchronize_channels = synchronize_channels
