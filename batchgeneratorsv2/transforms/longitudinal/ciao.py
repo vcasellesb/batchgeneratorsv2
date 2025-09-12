@@ -27,7 +27,7 @@ class CiaoBaseline(ImageOnlyTransform):
     def _apply_to_image(self, img: torch.Tensor, **params):
         img[params.get('apply_per_channel')] *= 0
         return img
-    
+
 
 if __name__ == "__main__":
     x = torch.randn((2, 128, 128, 128))
