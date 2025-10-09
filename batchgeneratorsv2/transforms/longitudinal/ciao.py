@@ -11,10 +11,9 @@ class CiaoBaseline(ImageOnlyTransform):
     longitudinal and cross-sectional settings.
     """
     def __init__(
-            self,
-            p_per_channel: float | Iterable[float]
-        ):
-
+        self,
+        p_per_channel: float | Iterable[float]
+    ):
         self.p_per_channel = torch.tensor(p_per_channel, dtype=float)
 
 
