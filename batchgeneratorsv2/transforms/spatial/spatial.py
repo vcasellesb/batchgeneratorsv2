@@ -196,27 +196,27 @@ class SpatialTransform(BasicTransform):
                               pad_mode=pad_mode,
                               pad_kwargs=pad_kwargs)
             return img
+
+        grid = self._get_base_grid_clone()
+
+        # we deform first, then rotate
+        if params['elastic_offsets'] is not None:
+            grid += params['elastic_offsets']
+        if params['affine'] is not None:
+            grid = torch.matmul(grid, torch.from_numpy(params['affine']).float())
+
+        # we center the grid around the center_location_in_pixels. We should center the mean of the grid, not the center position
+        # only do this if we elastic deform
+        if self.center_deformation and params['elastic_offsets'] is not None:
+            mn = grid.mean(dim=list(range(img.ndim - 1)))
         else:
-            grid = self._get_base_grid_clone()
+            mn = 0
 
-            # we deform first, then rotate
-            if params['elastic_offsets'] is not None:
-                grid += params['elastic_offsets']
-            if params['affine'] is not None:
-                grid = torch.matmul(grid, torch.from_numpy(params['affine']).float())
-
-            # we center the grid around the center_location_in_pixels. We should center the mean of the grid, not the center position
-            # only do this if we elastic deform
-            if self.center_deformation and params['elastic_offsets'] is not None:
-                mn = grid.mean(dim=list(range(img.ndim - 1)))
-            else:
-                mn = 0
-
-            new_center = torch.Tensor([c - s / 2 for c, s in zip(params['center_location_in_pixels'], img.shape[1:])])
-            grid += (new_center - mn)
-            # print(f'grid sample with pad mode {self.padding_mode_image}')
-            return grid_sample(img[None], _convert_my_grid_to_grid_sample_grid(grid, img.shape[1:])[None],
-                               mode='bilinear', padding_mode=self.padding_mode_image, align_corners=False)[0]
+        new_center = torch.Tensor([c - s / 2 for c, s in zip(params['center_location_in_pixels'], img.shape[1:])])
+        grid += (new_center - mn)
+        # print(f'grid sample with pad mode {self.padding_mode_image}')
+        return grid_sample(img[None], _convert_my_grid_to_grid_sample_grid(grid, img.shape[1:])[None],
+                            mode='bilinear', padding_mode=self.padding_mode_image, align_corners=False)[0]
 
     def _apply_to_segmentation(self, segmentation: torch.Tensor, **params) -> torch.Tensor:
         segmentation = segmentation.contiguous()
@@ -230,81 +230,81 @@ class SpatialTransform(BasicTransform):
                                        pad_mode='constant',
                                        pad_kwargs={'value': 0})
             return segmentation
+
+        grid = self._get_base_grid_clone()
+
+        # we deform first, then rotate
+        if params['elastic_offsets'] is not None:
+            grid += params['elastic_offsets']
+        if params['affine'] is not None:
+            grid = torch.matmul(grid, torch.from_numpy(params['affine']).float())
+
+        # we center the grid around the center_location_in_pixels. We should center the mean of the grid, not the center coordinate
+        if self.center_deformation and params['elastic_offsets'] is not None:
+            mn = grid.mean(dim=list(range(segmentation.ndim - 1)))
         else:
-            grid = self._get_base_grid_clone()
+            mn = 0
 
-            # we deform first, then rotate
-            if params['elastic_offsets'] is not None:
-                grid += params['elastic_offsets']
-            if params['affine'] is not None:
-                grid = torch.matmul(grid, torch.from_numpy(params['affine']).float())
+        new_center = torch.Tensor(
+            [c - s / 2 for c, s in zip(params['center_location_in_pixels'], segmentation.shape[1:])])
 
-            # we center the grid around the center_location_in_pixels. We should center the mean of the grid, not the center coordinate
-            if self.center_deformation and params['elastic_offsets'] is not None:
-                mn = grid.mean(dim=list(range(segmentation.ndim - 1)))
-            else:
-                mn = 0
+        grid += (new_center - mn)
+        grid = _convert_my_grid_to_grid_sample_grid(grid, segmentation.shape[1:])
 
-            new_center = torch.Tensor(
-                [c - s / 2 for c, s in zip(params['center_location_in_pixels'], segmentation.shape[1:])])
-
-            grid += (new_center - mn)
-            grid = _convert_my_grid_to_grid_sample_grid(grid, segmentation.shape[1:])
-
-            if self.mode_seg == 'nearest':
-                result_seg = grid_sample(
-                    segmentation[None].float(),
-                    grid[None],
-                    mode=self.mode_seg,
-                    padding_mode=self.border_mode_seg,
-                    align_corners=False
-                )[0].to(segmentation.dtype)
-            else:
-                result_seg = torch.zeros((segmentation.shape[0], *self.patch_size), dtype=segmentation.dtype)
-                if self.bg_style_seg_sampling:
-                    for c in range(segmentation.shape[0]):
-                        labels = torch.from_numpy(np.sort(pd.unique(segmentation[c].numpy().ravel())))
-                        # if we only have 2 labels then we can save compute time
-                        if len(labels) == 2:
-                            out = grid_sample(
-                                ((segmentation[c] == labels[1]).float())[None, None],
-                                grid[None],
-                                mode=self.mode_seg,
-                                padding_mode=self.border_mode_seg,
-                                align_corners=False
-                            )[0][0] >= 0.5
-                            result_seg[c][out] = labels[1]
-                            result_seg[c][~out] = labels[0]
-                        else:
-                            for i, u in enumerate(labels):
-                                result_seg[c][
-                                    grid_sample(
-                                        ((segmentation[c] == u).float())[None, None],
-                                        grid[None],
-                                        mode=self.mode_seg,
-                                        padding_mode=self.border_mode_seg,
-                                        align_corners=False
-                                    )[0][0] >= 0.5] = u
-                else:
-                    for c in range(segmentation.shape[0]):
-                        labels = torch.from_numpy(np.sort(pd.unique(segmentation[c].numpy().ravel())))
-                        # torch.where(torch.bincount(segmentation.ravel()) > 0)[0].to(segmentation.dtype)
-                        tmp = torch.zeros((len(labels), *self.patch_size), dtype=torch.float16)
-                        scale_factor = 1000
-                        done_mask = torch.zeros(*self.patch_size, dtype=torch.bool)
+        if self.mode_seg == 'nearest':
+            result_seg = grid_sample(
+                segmentation[None].float(),
+                grid[None],
+                mode=self.mode_seg,
+                padding_mode=self.border_mode_seg,
+                align_corners=False
+            )[0].to(segmentation.dtype)
+        else:
+            result_seg = torch.zeros((segmentation.shape[0], *self.patch_size), dtype=segmentation.dtype)
+            if self.bg_style_seg_sampling:
+                for c in range(segmentation.shape[0]):
+                    labels = torch.from_numpy(np.sort(pd.unique(segmentation[c].numpy().ravel())))
+                    # if we only have 2 labels then we can save compute time
+                    if len(labels) == 2:
+                        out = grid_sample(
+                            ((segmentation[c] == labels[1]).float())[None, None],
+                            grid[None],
+                            mode=self.mode_seg,
+                            padding_mode=self.border_mode_seg,
+                            align_corners=False
+                        )[0][0] >= 0.5
+                        result_seg[c][out] = labels[1]
+                        result_seg[c][~out] = labels[0]
+                    else:
                         for i, u in enumerate(labels):
-                            tmp[i] = \
-                            grid_sample(((segmentation[c] == u).float() * scale_factor)[None, None], grid[None],
-                                        mode=self.mode_seg, padding_mode=self.border_mode_seg, align_corners=False)[0][
-                                0]
-                            mask = tmp[i] > (0.7 * scale_factor)
-                            result_seg[c][mask] = u
-                            done_mask = done_mask | mask
-                        if not torch.all(done_mask):
-                            result_seg[c][~done_mask] = labels[tmp[:, ~done_mask].argmax(0)]
-                        del tmp
-            del grid
-            return result_seg.contiguous()
+                            result_seg[c][
+                                grid_sample(
+                                    ((segmentation[c] == u).float())[None, None],
+                                    grid[None],
+                                    mode=self.mode_seg,
+                                    padding_mode=self.border_mode_seg,
+                                    align_corners=False
+                                )[0][0] >= 0.5] = u
+            else:
+                for c in range(segmentation.shape[0]):
+                    labels = torch.from_numpy(np.sort(pd.unique(segmentation[c].numpy().ravel())))
+                    # torch.where(torch.bincount(segmentation.ravel()) > 0)[0].to(segmentation.dtype)
+                    tmp = torch.zeros((len(labels), *self.patch_size), dtype=torch.float16)
+                    scale_factor = 1000
+                    done_mask = torch.zeros(*self.patch_size, dtype=torch.bool)
+                    for i, u in enumerate(labels):
+                        tmp[i] = \
+                        grid_sample(((segmentation[c] == u).float() * scale_factor)[None, None], grid[None],
+                                    mode=self.mode_seg, padding_mode=self.border_mode_seg, align_corners=False)[0][
+                            0]
+                        mask = tmp[i] > (0.7 * scale_factor)
+                        result_seg[c][mask] = u
+                        done_mask = done_mask | mask
+                    if not torch.all(done_mask):
+                        result_seg[c][~done_mask] = labels[tmp[:, ~done_mask].argmax(0)]
+                    del tmp
+        del grid
+        return result_seg.contiguous()
         
     def _apply_to_image_wrapper(self, image: torch.Tensor, is_seg_per_channel: list[bool], **params) -> torch.Tensor:
         out = []
