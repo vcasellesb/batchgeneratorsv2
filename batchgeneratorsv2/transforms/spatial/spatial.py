@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import torch
 from scipy.ndimage import fourier_gaussian, gaussian_filter
-from torch import Tensor
 from torch.nn.functional import grid_sample
 from functools import partial
 
@@ -41,7 +40,7 @@ class SpatialTransform(BasicTransform):
         """
         magnitude must be given in pixels!
         deformation scale is given as a paercentage of the edge length
-        
+
         padding_mode_image: see torch grid_sample documentation. This currently applies to image and regression target 
         because both call self._apply_to_image. Can be "zeros", "reflection", "border"
         """
