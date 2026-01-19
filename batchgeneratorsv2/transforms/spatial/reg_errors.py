@@ -3,10 +3,10 @@ import torch
 from torch.nn import functional as F
 import numpy as np
 
-from batchgeneratorsv2.transforms.base.basic_transform import BasicTransform
+from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
 
 
-class RegistrationErrorsTransform(BasicTransform):
+class RegistrationErrorsTransform(ImageOnlyTransform):
 
     def __init__(self,
                  reference_channel: int,
