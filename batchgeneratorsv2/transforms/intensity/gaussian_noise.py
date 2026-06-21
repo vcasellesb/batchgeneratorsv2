@@ -77,7 +77,7 @@ class GaussianNoiseTransform(ImageOnlyTransform):
         # to make sure modifications are written back to img.
         img[idx] += noise
         return img
-    
+
 
 if __name__ == "__main__":
     from time import time

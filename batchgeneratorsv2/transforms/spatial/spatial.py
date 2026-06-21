@@ -372,7 +372,7 @@ class SpatialTransform(BasicTransform):
 
     def _apply_to_bbox(self, bbox, **params):
         raise NotImplementedError
-    
+
 
 def create_affine_matrix_3d(rotation_angles, scaling_factors):
     # Rotation matrices for each axis
